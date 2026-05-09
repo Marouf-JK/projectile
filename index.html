@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Physics Arcade: Projectile Challenge</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>Physics Arcade: Projectile Challenge</h1>
+      <p>Dial in angle, speed, and gravity to hit the target.</p>
+    </header>
+
+    <main class="layout">
+      <div class="left-column">
+        <section class="game-card">
+          <canvas
+            id="gameCanvas"
+            width="900"
+            height="450"
+            aria-label="Projectile game canvas"
+          ></canvas>
+          <div class="status-row">
+            <p id="message">Ready to launch!</p>
+          </div>
+        </section>
+
+        <section
+          class="panel physics-graph-panel"
+          aria-label="Live physics graph"
+        >
+          <div class="physics-graph-head">
+            <h2>Live Physics Graph</h2>
+            <div class="physics-graph-controls">
+              <label for="physicsGraphSeries">Series</label>
+              <select id="physicsGraphSeries">
+                <option value="height" selected>Height vs Time</option>
+                <option value="horizontal">Horizontal Distance vs Time</option>
+              </select>
+            </div>
+          </div>
+          <canvas
+            id="physicsGraphCanvas"
+            width="900"
+            height="220"
+            aria-label="Projectile height or distance versus time"
+          ></canvas>
+        </section>
+        <div class="bottom-info-grid">
+          <section class="panel explain-panel">
+            <h2>Physics Quick Guide</h2>
+            <p>
+              <strong>Angle:</strong> The launch direction above horizontal. It
+              controls arc shape.
+            </p>
+            <p>
+              <strong>Speed:</strong> How fast the projectile starts moving.
+              Higher speed gives longer travel.
+            </p>
+            <p>
+              <strong>Gravity:</strong> Downward acceleration from a planet or
+              moon that bends the path.
+            </p>
+            <p>
+              <strong>Range:</strong> The total horizontal distance traveled
+              before landing.
+            </p>
+            <p>
+              <strong>Max Height:</strong> The highest point reached during
+              flight.
+            </p>
+            <p>
+              <strong>Time of Flight:</strong> How long the projectile stays in
+              the air.
+            </p>
+          </section>
+
+          <section class="panel breakdown-panel">
+            <h2>Physics Breakdown</h2>
+            <p id="breakdownIntro">
+              Launch to see short step-by-step substitutions using your values.
+            </p>
+            <pre id="breakdownContent"></pre>
+          </section>
+          <section class="panel achievements-panel">
+            <h2>Player Progress</h2>
+            <ul>
+              <li>
+                <span>Best Score</span><strong id="bestScoreStat">0</strong>
+              </li>
+              <li>
+                <span>Total Shots</span><strong id="totalShotsStat">0</strong>
+              </li>
+              <li>
+                <span>Total Hits</span><strong id="totalHitsStat">0</strong>
+              </li>
+              <li>
+                <span>Accuracy</span><strong id="accuracyStat">0%</strong>
+              </li>
+              <li>
+                <span>Best Prediction Error</span
+                ><strong id="bestPredictionStat">—</strong>
+              </li>
+            </ul>
+            <button id="resetProgressBtn" type="button" class="secondary">
+              Reset Progress
+            </button>
+          </section>
+        </div>
+      </div>
+
+      <aside class="side-panel">
+        <section class="panel controls-panel">
+          <h2>Controls</h2>
+
+          <div class="control-group">
+            <label for="speedSlider"
+              >Initial Speed: <span id="speedValue">60</span> m/s</label
+            >
+            <input
+              id="speedSlider"
+              type="range"
+              min="10"
+              max="120"
+              value="60"
+              step="1"
+            />
+          </div>
+
+          <div class="control-group">
+            <label for="angleSlider"
+              >Launch Angle: <span id="angleValue">45</span>°</label
+            >
+            <input
+              id="angleSlider"
+              type="range"
+              min="10"
+              max="80"
+              value="45"
+              step="1"
+            />
+          </div>
+
+          <div class="control-group">
+            <label for="gravitySelect">Gravity</label>
+            <select id="gravitySelect">
+              <option value="9.8">Earth (9.8 m/s²)</option>
+              <option value="1.62">Moon (1.62 m/s²)</option>
+              <option value="3.71">Mars (3.71 m/s²)</option>
+            </select>
+          </div>
+
+          <div class="control-group control-toggle">
+            <label for="guideToggle">Show Trajectory Guide</label>
+            <input id="guideToggle" type="checkbox" checked />
+          </div>
+
+          <div class="button-row">
+            <button id="launchBtn" type="button">Launch</button>
+            <button id="resetBtn" type="button" class="secondary">Reset</button>
+          </div>
+          <button
+            id="replayLastShotBtn"
+            type="button"
+            class="secondary replay-shot-btn"
+            disabled
+          >
+            Replay Last Shot
+          </button>
+          <p
+            id="replayStatusLine"
+            class="replay-status"
+            hidden
+            aria-live="polite"
+          >
+            Replaying last shot...
+          </p>
+        </section>
+
+        <section class="panel level-system-panel" aria-label="Difficulty level">
+          <h2>Level System</h2>
+          <div class="control-group compact-level">
+            <label for="levelSelect">Difficulty</label>
+            <select id="levelSelect">
+              <option value="1">Level 1: Beginner</option>
+              <option value="2">Level 2: Intermediate</option>
+              <option value="3">Level 3: Advanced</option>
+              <option value="4">Level 4: Expert</option>
+            </select>
+          </div>
+          <p id="movingTargetBadge" class="moving-target-badge" hidden>
+            Moving Target Active
+          </p>
+          <p id="levelSummaryLine" class="level-summary" aria-live="polite"></p>
+        </section>
+
+        <details class="challenge-generator-drawer panel">
+          <summary class="challenge-summary">
+            Challenge Generator <span class="optional-tag">(optional)</span>
+          </summary>
+          <div class="challenge-drawer-inner">
+            <p id="challengeGeneratedText" class="challenge-draft muted"></p>
+            <div class="challenge-actions">
+              <button id="challengeGenerateBtn" type="button" class="secondary">
+                Generate Challenge
+              </button>
+              <button id="challengeApplyBtn" type="button" disabled>
+                Apply Challenge
+              </button>
+            </div>
+            <button
+              id="challengeClearBtn"
+              type="button"
+              class="secondary challenge-clear-btn"
+            >
+              Clear Challenge
+            </button>
+            <p
+              id="challengeActiveText"
+              class="challenge-active-banner muted"
+              aria-live="polite"
+            ></p>
+          </div>
+        </details>
+
+        <section
+          class="panel prediction-challenge-panel"
+          aria-label="Prediction challenge"
+        >
+          <h2>Prediction Challenge</h2>
+          <div class="control-group">
+            <label for="predictionDistanceInput"
+              >Predict Landing Distance (m)</label
+            >
+            <input
+              id="predictionDistanceInput"
+              type="number"
+              min="0"
+              max="9999"
+              step="0.1"
+              inputmode="decimal"
+              placeholder="e.g. 120"
+              autocomplete="off"
+            />
+          </div>
+          <button
+            id="submitPredictionBtn"
+            type="button"
+            class="prediction-submit-btn"
+          >
+            Submit Prediction
+          </button>
+          <p
+            id="predictionOutcome"
+            class="prediction-outcome muted"
+            aria-live="polite"
+          ></p>
+        </section>
+
+        <section class="panel results-panel">
+          <h2>Results</h2>
+          <ul>
+            <li>
+              <span>Level</span
+              ><strong id="resultLevelSummary">1 · Beginner</strong>
+            </li>
+            <li>
+              <span>Hit zone (ø)</span
+              ><strong id="resultHitZoneMeters">—</strong>
+            </li>
+            <li>
+              <span>Target distance</span
+              ><strong id="resultTargetDistMeters">—</strong>
+            </li>
+            <li><span>Angle</span><strong id="resultAngle">45°</strong></li>
+            <li>
+              <span>Speed</span><strong id="resultSpeed">60.00 m/s</strong>
+            </li>
+            <li>
+              <span>Gravity</span><strong id="resultGravity">9.80 m/s²</strong>
+            </li>
+            <li><span>Range</span><strong id="resultRange">0.00 m</strong></li>
+            <li>
+              <span>Max Height</span><strong id="resultHeight">0.00 m</strong>
+            </li>
+            <li>
+              <span>Time of Flight</span><strong id="resultTime">0.00 s</strong>
+            </li>
+            <li><span>Score</span><strong id="resultScore">0</strong></li>
+            <li>
+              <span>Prediction bonus</span
+              ><strong id="resultPredictionBonus">0</strong>
+            </li>
+            <li>
+              <span>Challenge bonus</span
+              ><strong id="resultChallengeBonus">0</strong>
+            </li>
+          </ul>
+        </section>
+      </aside>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>

@@ -4,7 +4,7 @@ An interactive physics-based projectile motion simulator and mini-game built usi
 
 ## Live Demo
 
-https://marouf-jk.github.io/projectile/
+[https://marouf-jk.github.io/projectile/](https://marouf-jk.github.io/projectileGame/)
 
 ---
 

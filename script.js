@@ -356,21 +356,6 @@ function placeTargetDistanceInMetersRange(minMeters, maxMeters) {
   return (target.x - launcher.x) / metersToPixels;
 }
 
-/**
- * Random target at or beyond a minimum ground distance (meters), clamped to the level rail.
- * @returns {number} actual placement distance in meters
- */
-function placeTargetAtLeastMeters(minMeters) {
-  const { lo, hi } = computeTargetRailBoundsPx();
-  const minPx = Math.max(lo, launcher.x + minMeters * metersToPixels);
-  if (minPx >= hi - 8) {
-    target.x = Math.max(lo, hi - 55);
-    return (target.x - launcher.x) / metersToPixels;
-  }
-  target.x = Math.random() * (hi - minPx) + minPx;
-  return (target.x - launcher.x) / metersToPixels;
-}
-
 // ------------------------------
 // Replay Last Shot — record + playback (no scoring)
 // ------------------------------
@@ -657,28 +642,7 @@ function pickRandomMissionSpecFactory() {
     };
   }
 
-  if (roll < 0.41) {
-    const threshold = 150 + Math.floor(Math.random() * 40);
-    return {
-      type: "marsLong",
-      description: `Hit a target farther than ${threshold}m using Mars gravity.`,
-      bonus: 42,
-      apply() {
-        levelSelect.value = "2";
-        gravitySelect.value = "3.71";
-        applyLevelSizingToTarget();
-        updateControlLabels();
-        const placementM = placeTargetAtLeastMeters(threshold + 8);
-        return { placementM, meta: { marsThresholdApplied: threshold } };
-      },
-      predicate(ctx, applied) {
-        const th = applied.marsThresholdApplied;
-        return ctx.wasHit && ctx.gravity === 3.71 && ctx.targetDistanceM >= th - 4;
-      }
-    };
-  }
-
-  if (roll < 0.58) {
+  if (roll < 0.43) {
     return {
       type: "guideOffHit",
       description: "Hit the target with Guide Mode OFF.",
@@ -694,7 +658,7 @@ function pickRandomMissionSpecFactory() {
     };
   }
 
-  if (roll < 0.76) {
+  if (roll < 0.68) {
     const lvlRoll = Math.random() < 0.38 ? 3 : 4;
     const need = lvlRoll === 4 ? 4 : 3;
     return {
@@ -721,7 +685,7 @@ function pickRandomMissionSpecFactory() {
     };
   }
 
-  if (roll < 0.9) {
+  if (roll < 0.86) {
     return {
       type: "predictionWindow",
       description: "Predict the landing distance within 5 m (submit prediction before Launch).",
@@ -751,7 +715,7 @@ function pickRandomMissionSpecFactory() {
       return (target.x - launcher.x) / metersToPixels;
     },
     predicate(ctx) {
-      return ctx.wasHit && ctx.level === 4 && ctx.gravity === 9.8;
+      return ctx.ringScore === 2 && ctx.level === 4 && ctx.gravity === 9.8;
     }
   };
 }
@@ -1229,6 +1193,22 @@ function drawTarget() {
   ctx.stroke();
 }
 
+function getTargetCenterY() {
+  return groundY - target.radius;
+}
+
+function getTargetRingScore(ballX, ballY) {
+  const dx = ballX - target.x;
+  const dy = ballY - getTargetCenterY();
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  const centerRadius = target.radius * 0.17;
+  const innerRedRadius = target.radius * 0.4;
+
+  if (distance <= centerRadius) return 2;
+  if (distance <= innerRedRadius) return 1;
+  return 0;
+}
+
 function drawPredictionArc() {
   if (!simulationDone || !guideToggle.checked) return;
 
@@ -1605,6 +1585,7 @@ function launchProjectile() {
 
   const dt = 1 / 60;
   let landingX = launcher.x;
+  let shotRingScore = 0;
 
   function animate() {
     if (!projectile) return;
@@ -1633,8 +1614,14 @@ function launchProjectile() {
     projectile.canvasY = yPx;
     trail.push({ x: xPx, y: yPx });
 
+    shotRingScore = getTargetRingScore(projectile.canvasX, projectile.canvasY);
+    if (shotRingScore > 0) {
+      landingX = projectile.canvasX;
+      projectile.landed = true;
+    }
+
     // Landing condition: projectile reaches ground or goes out of view.
-    if (yPx >= groundY || xPx > canvas.width - 5) {
+    if (!projectile.landed && (yPx >= groundY || xPx > canvas.width - 5)) {
       projectile.canvasY = groundY;
       landingX = Math.min(xPx, canvas.width - 5);
       projectile.canvasX = landingX;
@@ -1662,22 +1649,18 @@ function launchProjectile() {
     stopAnimation();
     redrawPhysicsGraph();
 
-    // Hit logic: projectile lands close to target center.
-    const hitThreshold = target.hitZoneRadius;
-    const distanceToTarget = Math.abs(landingX - target.x);
-    const pts = getActivePreset().hitPoints;
-    if (distanceToTarget <= hitThreshold) {
-      score += pts;
-      setMessage(`Hit! Great shot. (+${pts} score)`, "hit");
+    const wasHitLanding = shotRingScore > 0;
+    if (wasHitLanding) {
+      score += shotRingScore;
+      setMessage(shotRingScore === 2 ? "Bullseye! +2" : "Hit! +1", "hit");
     } else {
-      setMessage("Miss! Tune your values and try again.", "miss");
+      setMessage("No score. Try again.", "miss");
     }
 
    
     resultScore.textContent = `${score}`;
 
     const actualLandingDistanceM = landingDistanceMetersFromCanvas(landingX);
-    const wasHitLanding = distanceToTarget <= hitThreshold;
     const predictionAbsErrM =
       predictionSnapshotForActiveFlight !== null &&
       Number.isFinite(predictionSnapshotForActiveFlight)
@@ -1685,9 +1668,9 @@ function launchProjectile() {
         : null;
          playerStats.totalShots += 1;
 
-if (distanceToTarget <= hitThreshold) {
-  playerStats.totalHits += 1;
-}
+    if (wasHitLanding) {
+      playerStats.totalHits += 1;
+    }
 
 if (score > playerStats.bestScore) {
   playerStats.bestScore = score;
@@ -1712,6 +1695,7 @@ updatePlayerProgressUI();
       gravity: Number(gravitySelect.value),
       level: replayLevelCaptured,
       guideOff: !guideToggle.checked,
+      ringScore: shotRingScore,
       targetDistanceM: Math.max(0, (target.x - launcher.x) / metersToPixels),
       predictionAbsErrorM: predictionAbsErrM
     });
